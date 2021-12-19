@@ -1,4 +1,4 @@
 /** @format */
 
 export * from './Query';
-export * from './Mutation';
+export * from './mutations/Mutation';

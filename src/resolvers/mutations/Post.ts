@@ -1,7 +1,8 @@
 /** @format */
 
 import { Post } from '@prisma/client';
-import { Context } from '..';
+import { Context } from '../..';
+import { validation } from '../../utils/validateUser';
 
 interface PostArgs {
   post: {
@@ -19,13 +20,23 @@ interface PostPayloadType {
   post: Post | null;
 }
 
-export const Mutation = {
+export const postResolvers = {
   //MUTATION TO CREATE POST
   postCreate: async (
     _parent: any,
     { post }: PostArgs,
-    { prisma }: Context
+    { prisma, userInfo }: Context
   ): Promise<PostPayloadType> => {
+    if (userInfo === null) {
+      return {
+        userErrors: [
+          {
+            message: 'Unauthenticated User Forbidden Acess',
+          },
+        ],
+        post: null,
+      };
+    }
     //this checks the case of error by user
     if (!post.title || !post.content) {
       return {
@@ -42,7 +53,7 @@ export const Mutation = {
       data: {
         title: post.title,
         content: post.content,
-        authorId: 1,
+        authorId: userInfo.userId,
       },
     });
     //return the user response
@@ -59,7 +70,7 @@ export const Mutation = {
   postUpdate: async (
     _parent: any,
     { post, postID }: { postID: string; post: PostArgs['post'] },
-    { prisma }: Context
+    { prisma, userInfo }: Context
   ): Promise<PostPayloadType> => {
     //if no title or content provided then throw error as no purpose of update req
     if (!post.title && !post.content) {
@@ -68,20 +79,7 @@ export const Mutation = {
         post: null,
       };
     }
-
-    //find the existing post in db and throw error if not found
-    const existingPost = await prisma.post.findUnique({
-      where: {
-        id: Number(postID),
-      },
-    });
-
-    if (!existingPost) {
-      return {
-        userErrors: [{ message: 'post does not exist' }],
-        post: null,
-      };
-    }
+    validation({ postID: postID }, { prisma: prisma, userInfo: userInfo });
 
     //update the post in the db with new data
     const updatedPost = await prisma.post.update({
@@ -104,22 +102,14 @@ export const Mutation = {
   postDelete: async (
     _parent: any,
     { postID }: { postID: string },
-    { prisma }: Context
+    { prisma, userInfo }: Context
   ): Promise<PostPayloadType> => {
-    //find the existing post in db and throw error if not found
-    const existingPost = await prisma.post.findUnique({
-      where: {
-        id: Number(postID),
-      },
-    });
+    const existingPost = validation(
+      { postID: postID },
+      { prisma: prisma, userInfo: userInfo }
+    );
 
-    if (!existingPost) {
-      return {
-        userErrors: [{ message: 'post does not exist' }],
-        post: null,
-      };
-    }
-
+    //DELETE FROM DB
     await prisma.post.delete({
       where: {
         id: Number(postID),
@@ -128,7 +118,55 @@ export const Mutation = {
 
     return {
       userErrors: null,
-      post: existingPost,
+      post: existingPost as any,
+    };
+  },
+  //MUTATION TO PUBLISH THE POST
+  postPublish: async (
+    _parent: any,
+    { postID }: { postID: string },
+    { prisma, userInfo }: Context
+  ): Promise<PostPayloadType> => {
+    validation({ postID: postID }, { prisma: prisma, userInfo: userInfo });
+
+    //update the post in the db with new data
+    const updatedPost = await prisma.post.update({
+      where: {
+        id: Number(postID),
+      },
+      data: {
+        published: true,
+      },
+    });
+
+    //return the updatedPost
+    return {
+      userErrors: null,
+      post: updatedPost,
+    };
+  },
+  //MUTATION TO UNPUBLISH THE POST
+  postUnpublish: async (
+    _parent: any,
+    { postID }: { postID: string },
+    { prisma, userInfo }: Context
+  ): Promise<PostPayloadType> => {
+    validation({ postID: postID }, { prisma: prisma, userInfo: userInfo });
+
+    //update the post in the db with new data
+    const updatedPost = await prisma.post.update({
+      where: {
+        id: Number(postID),
+      },
+      data: {
+        published: false,
+      },
+    });
+
+    //return the updatedPost
+    return {
+      userErrors: null,
+      post: updatedPost,
     };
   },
 };
