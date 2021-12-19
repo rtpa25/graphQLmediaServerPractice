@@ -17,7 +17,7 @@ model Post {
   published Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  authorId  Int
+  authorId  Int      @unique
   author    User     @relation(fields: [authorId], references: [id])
 }
 
